@@ -1,0 +1,232 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:pos_system/main.dart';
+import 'package:pos_system/mock_data/mock_data.dart';
+import 'package:pos_system/features/purchase_orders/screens/receive_goods_dialog.dart';
+
+const Size _desktop = Size(1600, 950);
+
+Future<void> _pumpApp(WidgetTester tester) async {
+  tester.view.physicalSize = _desktop;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(const PosSystemApp());
+  await tester.pump();
+}
+
+/// يفتح شاشة من القائمة الجانبية (أول نتيجة هي عنصر الـSidebar)
+Future<void> _openScreen(WidgetTester tester, String navLabel) async {
+  await _pumpApp(tester);
+  final Finder item = find.text(navLabel).first;
+  await tester.ensureVisible(item);
+  await tester.pumpAndSettle();
+  await tester.tap(item);
+  await tester.pumpAndSettle();
+}
+
+void main() {
+  group('المشتريات', () {
+    testWidgets('جدول أوامر الشراء بيظهر بالحالات الأربعة', (
+      WidgetTester tester,
+    ) async {
+      await _openScreen(tester, 'المشتريات');
+
+      expect(find.text('أوامر الشراء'), findsWidgets);
+      expect(find.text('مسودة'), findsWidgets);
+      expect(find.text('مؤكد'), findsWidgets);
+      expect(find.text('مستلم جزئيًا'), findsWidgets);
+      expect(find.text('مكتمل'), findsWidgets);
+    });
+
+    testWidgets('الضغط على أمر مؤكد بيفتح Modal استلام البضاعة', (
+      WidgetTester tester,
+    ) async {
+      await _openScreen(tester, 'المشتريات');
+
+      // PO-1057 أمر مؤكد
+      await tester.tap(find.text('PO-1057'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('استلام البضاعة'), findsOneWidget);
+      expect(find.text('الكمية المستلمة'), findsOneWidget);
+      // "نسبة الاستلام" موجودة كمان كعمود في الجدول اللي ورا الحوار
+      expect(
+        find.descendant(
+          of: find.byType(ReceiveGoodsDialog),
+          matching: find.text('نسبة الاستلام'),
+        ),
+        findsOneWidget,
+      );
+      // استلام الكل بيخلي النسبة 100%
+      await tester.tap(find.text('استلام الكل'));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(ReceiveGoodsDialog),
+          matching: find.text('100%'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('إتمام الاستلام'), findsOneWidget);
+    });
+
+    testWidgets('شاشة أمر شراء جديد بتحسب الإجمالي لحظيًا', (
+      WidgetTester tester,
+    ) async {
+      await _openScreen(tester, 'المشتريات');
+
+      await tester.tap(find.text('أمر شراء جديد'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('إجمالي الأمر'), findsOneWidget);
+      expect(find.text('لم تتم إضافة أصناف بعد'), findsOneWidget);
+
+      await tester.tap(find.text('إضافة كتالوج المورد'));
+      await tester.pumpAndSettle();
+
+      // كتالوج المورد الأول = بقالة + ألبان
+      final int expectedLines =
+          MockData.productsBySupplier(MockData.suppliers.first.id).length;
+      expect(expectedLines, greaterThan(0));
+      expect(find.text('لم تتم إضافة أصناف بعد'), findsNothing);
+      expect(find.text('إنشاء واعتماد الأمر'), findsOneWidget);
+    });
+  });
+
+  group('المخزون', () {
+    testWidgets('حوار تحويل المخزون بيعرض Stepper بثلاث مراحل', (
+      WidgetTester tester,
+    ) async {
+      await _openScreen(tester, 'المخزون');
+
+      await tester.tap(find.text('تحويل مخزون'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('مُعلّق'), findsOneWidget);
+      expect(find.text('في الطريق'), findsOneWidget);
+      expect(find.text('تم الاستلام'), findsOneWidget);
+      expect(find.text('الفرع المُرسِل'), findsOneWidget);
+      expect(find.text('الفرع المُستقبِل'), findsOneWidget);
+      expect(find.text('لم تتم إضافة أصناف بعد'), findsOneWidget);
+    });
+
+    testWidgets('شاشة الجرد بتحسب الفرق وتلوّنه', (WidgetTester tester) async {
+      await _openScreen(tester, 'المخزون');
+
+      await tester.tap(find.text('بدء جرد'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('جرد المخزون'), findsOneWidget);
+      expect(find.text('الكمية بالنظام'), findsOneWidget);
+      expect(find.text('الكمية الفعلية'), findsOneWidget);
+
+      // إدخال كمية فعلية أقل من النظام → عجز
+      // (الحقل رقم 0 هو البحث، فأول صف في الجدول رقمه 1)
+      final int system = MockData.onHandAt(
+        MockData.products.first.id,
+        MockData.branches.first.id,
+      );
+      await tester.enterText(
+        find.byType(TextField).at(1),
+        '${system - 5}',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('-5'), findsOneWidget);
+      expect(find.textContaining('صافي فرق القيمة'), findsOneWidget);
+    });
+  });
+
+  group('العملاء', () {
+    testWidgets('جدول العملاء وفلتر المدينين', (WidgetTester tester) async {
+      await _openScreen(tester, 'العملاء');
+
+      expect(find.text('قائمة العملاء'), findsOneWidget);
+      expect(find.text(MockData.customers[1].name), findsOneWidget);
+
+      await tester.tap(find.text('المدينون فقط'));
+      await tester.pumpAndSettle();
+
+      // عميل رصيده صفر مايظهرش
+      expect(find.text('هدى إبراهيم'), findsNothing);
+    });
+
+    testWidgets('ملف العميل بتبويباته الثلاثة', (WidgetTester tester) async {
+      await _openScreen(tester, 'العملاء');
+
+      await tester.tap(find.text(MockData.customers[1].name));
+      await tester.pumpAndSettle();
+
+      expect(find.text('ملف العميل'), findsOneWidget);
+      expect(find.text('الحد الائتماني'), findsOneWidget);
+      expect(find.text('نقاط الولاء'), findsWidgets);
+
+      // كشف الحساب — Timeline
+      await tester.tap(find.text('كشف الحساب'));
+      await tester.pumpAndSettle();
+      expect(find.text('فاتورة بيع'), findsWidgets);
+
+      // نقاط الولاء
+      await tester.tap(find.text('نقاط الولاء').last);
+      await tester.pumpAndSettle();
+      expect(find.text('رصيد النقاط الحالي'), findsOneWidget);
+      expect(find.text('سجل النقاط'), findsOneWidget);
+    });
+  });
+
+  group('الموردين', () {
+    testWidgets('جدول الموردين وملف المورد', (WidgetTester tester) async {
+      await _openScreen(tester, 'الموردين');
+
+      expect(find.text('قائمة الموردين'), findsOneWidget);
+
+      await tester.tap(find.text(MockData.suppliers.first.name).first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('ملف المورد'), findsOneWidget);
+      expect(find.text('الرصيد المستحق للمورد'), findsOneWidget);
+      expect(find.text('المنتجات الموردة'), findsWidgets);
+
+      await tester.tap(find.text('كشف الحساب والمدفوعات').last);
+      await tester.pumpAndSettle();
+      expect(find.text('إجمالي المدفوع'), findsOneWidget);
+    });
+  });
+
+  group('الموظفين', () {
+    testWidgets('جدول الموظفين بيعرض آخر دخول', (WidgetTester tester) async {
+      await _openScreen(tester, 'الموظفين');
+
+      expect(find.text('قائمة الموظفين'), findsOneWidget);
+      expect(find.text('آخر دخول'), findsOneWidget);
+      expect(find.text(MockData.employees.first.name), findsWidgets);
+    });
+
+    testWidgets('شاشة الصلاحيات بتبدّل الأدوار وتحفظ التغييرات', (
+      WidgetTester tester,
+    ) async {
+      await _openScreen(tester, 'الموظفين');
+
+      await tester.tap(find.text('الأدوار والصلاحيات'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('صلاحيات دور: كاشير'), findsOneWidget);
+      expect(find.text('يمكنه تطبيق خصم'), findsOneWidget);
+      expect(find.text('كل التغييرات محفوظة'), findsOneWidget);
+
+      // تبديل الدور
+      await tester.tap(find.text('محاسب'));
+      await tester.pumpAndSettle();
+      expect(find.text('صلاحيات دور: محاسب'), findsOneWidget);
+
+      // تفعيل صلاحية → الشريط السفلي بيتغير
+      await tester.tap(find.text('يمكنه تطبيق خصم'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('تغييرات غير محفوظة'), findsOneWidget);
+
+      await tester.tap(find.text('حفظ التغييرات'));
+      await tester.pumpAndSettle();
+      expect(find.text('كل التغييرات محفوظة'), findsOneWidget);
+    });
+  });
+}

@@ -1,0 +1,263 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:pos_system/main.dart';
+import 'package:pos_system/mock_data/mock_data.dart';
+import 'package:pos_system/features/payment/screens/payment_dialog.dart';
+import 'package:pos_system/features/pos_sale/screens/pos_sale_screen.dart';
+import 'package:pos_system/theme/app_theme.dart';
+
+/// مقاس شاشة سطح المكتب اللي النظام متصمم عليه
+const Size _desktop = Size(1440, 900);
+
+Future<void> _pumpDesktop(WidgetTester tester, Widget app) async {
+  tester.view.physicalSize = _desktop;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(app);
+  await tester.pump();
+}
+
+/// يفتح التطبيق كامل وينتقل لشاشة من القائمة الجانبية
+Future<void> _openScreen(WidgetTester tester, String navLabel) async {
+  await _pumpDesktop(tester, const PosSystemApp());
+  // أول نتيجة هي عنصر القائمة الجانبية (الـSidebar أول عنصر في الـRow)
+  await tester.tap(find.text(navLabel).first);
+  await tester.pumpAndSettle();
+}
+
+void main() {
+  group('الهيكل العام', () {
+    testWidgets('يفتح التطبيق على شاشة الترحيب باتجاه RTL', (
+      WidgetTester tester,
+    ) async {
+      await _pumpDesktop(tester, const PosSystemApp());
+
+      expect(find.text('أهلاً بك في POS System'), findsOneWidget);
+
+      final Directionality directionality = tester.widget<Directionality>(
+        find.byType(Directionality).first,
+      );
+      expect(directionality.textDirection, TextDirection.rtl);
+    });
+  });
+
+  group('نقطة البيع', () {
+    testWidgets('الضغط على منتج يضيفه للسلة ويحدّث الإجمالي', (
+      WidgetTester tester,
+    ) async {
+      await _pumpDesktop(
+        tester,
+        MaterialApp(
+          theme: AppTheme.light,
+          home: const Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(body: PosSaleScreen()),
+          ),
+        ),
+      );
+
+      expect(find.text('السلة فارغة'), findsOneWidget);
+
+      final Product product = MockData.products.first;
+      await tester.tap(find.text(product.name).first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('السلة فارغة'), findsNothing);
+      // الإجمالي = السعر + 14% ضريبة
+      final double expectedTotal = product.price * (1 + MockData.taxRate);
+      expect(find.text(expectedTotal.toStringAsFixed(2)), findsOneWidget);
+    });
+
+    testWidgets('حوار الدفع يفتح ويعرض أنيميشن النجاح بعد التأكيد', (
+      WidgetTester tester,
+    ) async {
+      await _pumpDesktop(
+        tester,
+        MaterialApp(
+          theme: AppTheme.light,
+          home: const Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(body: PosSaleScreen()),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text(MockData.products.first.name).first);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('الدفع'));
+      await tester.pumpAndSettle();
+
+      // طرق الدفع الأربعة + الـNumpad
+      expect(find.text('كاش'), findsWidgets);
+      expect(find.text('آجل'), findsOneWidget);
+      expect(find.text('الإجمالي المطلوب'), findsOneWidget);
+      expect(find.text('7'), findsOneWidget);
+
+      await tester.tap(find.text('تأكيد الدفع'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('تم الدفع بنجاح'), findsOneWidget);
+
+      // ننتظر الأنيميشن ثم مؤقّت التأخير قبل قفل الحوار.
+      // (pumpAndSettle لوحده مش بيقدّم المؤقتات لأنها مش بتجدول frames)
+      for (int i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 600));
+      }
+      await tester.pumpAndSettle();
+
+      // الحوار اتقفل والسلة اتفضّت
+      expect(find.text('تم الدفع بنجاح'), findsNothing);
+      expect(find.text('السلة فارغة'), findsOneWidget);
+    });
+
+    testWidgets('التقسيم على أكتر من طريقة دفع بيحسب المتبقي صح', (
+      WidgetTester tester,
+    ) async {
+      await _pumpDesktop(
+        tester,
+        MaterialApp(
+          theme: AppTheme.light,
+          home: const Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(body: PosSaleScreen()),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text(MockData.products.first.name).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('الدفع'));
+      await tester.pumpAndSettle();
+
+      // ندخل مبلغ أقل من الإجمالي (10) فيتفعّل زر التقسيم.
+      // نحصر البحث جوه الحوار لأن شاشة الكاشير لسه موجودة تحته.
+      Finder key(String label) => find.descendant(
+            of: find.byType(PaymentDialog),
+            matching: find.text(label),
+          );
+
+      await tester.tap(key('1'));
+      await tester.pump();
+      await tester.tap(key('0'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('إضافة طريقة دفع أخرى'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('الدفعات المسجّلة'), findsOneWidget);
+      // الدفعة الأولى اتسجّلت بـ10 والمتبقي اتحسب
+      expect(key('10.00 ج.م'), findsOneWidget);
+    });
+  });
+
+  group('المنتجات', () {
+    testWidgets('الجدول بيظهر والتبويبات بتفلتر', (WidgetTester tester) async {
+      await _openScreen(tester, 'المنتجات');
+
+      expect(find.text('SKU'), findsOneWidget);
+      expect(find.text(MockData.products.first.name), findsOneWidget);
+
+      await tester.tap(find.text('غير نشطة'));
+      await tester.pumpAndSettle();
+
+      for (final Product p in MockData.inactiveProducts) {
+        expect(find.text(p.name), findsOneWidget);
+      }
+      expect(find.text('غير نشط'), findsNWidgets(3));
+    });
+
+    testWidgets('الفرز بالضغط على عمود الكمية شغال', (
+      WidgetTester tester,
+    ) async {
+      await _openScreen(tester, 'المنتجات');
+
+      await tester.tap(find.text('الكمية'));
+      await tester.pumpAndSettle();
+
+      // أقل كمية (منتج نافد) المفروض تبقى أول صف
+      expect(find.text('نفد المخزون'), findsWidgets);
+    });
+
+    testWidgets('زر إضافة منتج بيفتح شاشة النموذج بتبويباتها', (
+      WidgetTester tester,
+    ) async {
+      await _openScreen(tester, 'المنتجات');
+
+      await tester.tap(find.text('إضافة منتج'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('إضافة منتج جديد'), findsOneWidget);
+      expect(find.text('بيانات أساسية'), findsOneWidget);
+      expect(find.text('الباركود'), findsOneWidget);
+      // الشريط السفلي الثابت
+      expect(find.text('حفظ المنتج'), findsOneWidget);
+    });
+
+    testWidgets('هامش الربح بيتحسب لحظيًا في تبويب التسعير', (
+      WidgetTester tester,
+    ) async {
+      await _openScreen(tester, 'المنتجات');
+      await tester.tap(find.text('إضافة منتج'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('التسعير'));
+      await tester.pumpAndSettle();
+
+      final Finder cost = find.ancestor(
+        of: find.text('سعر التكلفة'),
+        matching: find.byType(Column),
+      );
+      expect(cost, findsWidgets);
+
+      // تكلفة 60 وسعر بيع 100 → هامش 40%
+      await tester.enterText(find.byType(TextField).at(0), '60');
+      await tester.enterText(find.byType(TextField).at(1), '100');
+      await tester.pumpAndSettle();
+
+      expect(find.text('40.0%'), findsOneWidget);
+      expect(find.text('الربح على القطعة: 40.00 ج.م'), findsOneWidget);
+    });
+  });
+
+  group('المخزون', () {
+    testWidgets('البطاقات الإحصائية والجدول بيظهروا', (
+      WidgetTester tester,
+    ) async {
+      await _openScreen(tester, 'المخزون');
+
+      expect(find.text('إجمالي قيمة المخزون'), findsOneWidget);
+      expect(find.text('منتجات نافدة'), findsOneWidget);
+      expect(find.text('قاربت على انتهاء الصلاحية'), findsOneWidget);
+      expect(find.text('تحويل مخزون'), findsOneWidget);
+      expect(find.text('بدء جرد'), findsOneWidget);
+
+      // أعمدة الجدول
+      expect(find.text('الكمية الفعلية'), findsOneWidget);
+      expect(find.text('المحجوزة'), findsOneWidget);
+      expect(find.text('المتاحة'), findsOneWidget);
+    });
+
+    testWidgets('فلتر الفرع بيقلّل عدد السجلات', (WidgetTester tester) async {
+      await _openScreen(tester, 'المخزون');
+
+      // كل الفروع = عدد المنتجات × عدد الفروع
+      expect(
+        find.text('(${MockData.stockRecords.length} سجل)'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('كل الفروع والمخازن'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(MockData.branches[1].name).last);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('(${MockData.products.length} سجل)'),
+        findsOneWidget,
+      );
+      expect(find.text('كل الفروع والمخازن'), findsNothing);
+    });
+  });
+}
