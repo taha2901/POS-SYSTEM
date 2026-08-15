@@ -1,6 +1,6 @@
 import 'dart:collection';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 import '../../../core/widgets/numpad.dart';
 import '../models/payment_entry.dart';
@@ -10,7 +10,9 @@ import '../models/payment_result.dart';
 /// حالة شاشة الدفع: الدفعات المسجّلة، الطريقة الحالية، والمبلغ اللي بيتكتب.
 class PaymentController extends ChangeNotifier {
   PaymentController({required this.total})
-      : _entry = AmountEntry(initial: total);
+      : _entry = AmountEntry(initial: total) {
+    amountController = TextEditingController(text: _entry.text);
+  }
 
   /// إجمالي الفاتورة المطلوب تحصيله.
   final double total;
@@ -18,8 +20,27 @@ class PaymentController extends ChangeNotifier {
   final List<PaymentEntry> _entries = <PaymentEntry>[];
   PaymentMethod _method = PaymentMethod.cash;
 
-  /// المبلغ اللي بيتكتب دلوقتي على الـNumpad
+  /// المبلغ اللي بيتكتب دلوقتي — على الـNumpad أو من الكيبورد.
   final AmountEntry _entry;
+
+  /// نفس المبلغ بس كـTextEditingController عشان الكاشير يقدر يكتبه بإيده.
+  late final TextEditingController amountController;
+
+  /// بيزامن الخانة مع الـNumpad بعد أي تعديل جاي من الأزرار.
+  void _syncText() {
+    if (amountController.text == _entry.text) return;
+    amountController.value = TextEditingValue(
+      text: _entry.text,
+      selection: TextSelection.collapsed(offset: _entry.text.length),
+    );
+  }
+
+  /// بيتنده لما الكاشير يكتب في الخانة بنفسه.
+  void amountTyped(String value) {
+    _entry.text = value;
+    _entry.fresh = false;
+    notifyListeners();
+  }
 
   UnmodifiableListView<PaymentEntry> get entries =>
       UnmodifiableListView<PaymentEntry>(_entries);
@@ -55,26 +76,31 @@ class PaymentController extends ChangeNotifier {
   // ── إجراءات ──────────────────────────────────────────────────────────────
   void tapKey(String key) {
     _entry.tapKey(key);
+    _syncText();
     notifyListeners();
   }
 
   void backspace() {
     _entry.backspace();
+    _syncText();
     notifyListeners();
   }
 
   void clearInput() {
     _entry.clear();
+    _syncText();
     notifyListeners();
   }
 
   void addQuick(double value) {
     _entry.add(value);
+    _syncText();
     notifyListeners();
   }
 
   void setExact() {
     _entry.setValue(remainingBefore);
+    _syncText();
     notifyListeners();
   }
 
@@ -83,6 +109,7 @@ class PaymentController extends ChangeNotifier {
     // الآجل بياخد المتبقي كله على حساب العميل
     if (method == PaymentMethod.credit) {
       _entry.setValue(remainingBefore);
+      _syncText();
     }
     notifyListeners();
   }
@@ -95,12 +122,14 @@ class PaymentController extends ChangeNotifier {
     _entries.add(PaymentEntry(method: _method, amount: amount));
     _method = _nextUnusedMethod();
     _entry.setValue(remainingBefore);
+    _syncText();
     notifyListeners();
   }
 
   void removeEntry(int index) {
     _entries.removeAt(index);
     _entry.setValue(remainingBefore);
+    _syncText();
     notifyListeners();
   }
 
@@ -125,5 +154,11 @@ class PaymentController extends ChangeNotifier {
       paid: paid,
       change: change,
     );
+  }
+
+  @override
+  void dispose() {
+    amountController.dispose();
+    super.dispose();
   }
 }

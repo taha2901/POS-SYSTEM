@@ -5,14 +5,17 @@ import '../../../core/widgets/primary_button.dart';
 import '../../../core/widgets/secondary_button.dart';
 import '../../../theme/app_theme.dart';
 import '../../../utils/formatters.dart';
+import '../models/cart_discount.dart';
+import 'discount_presets_row.dart';
+import 'discount_type_toggle.dart';
 
-/// يفتح حوار الخصم ويرجّع قيمة الخصم الجديدة (أو null لو اتلغى).
-Future<double?> showDiscountDialog(
+/// يفتح حوار الخصم ويرجّع الخصم الجديد (أو null لو اتلغى).
+Future<CartDiscount?> showDiscountDialog(
   BuildContext context, {
   required double subtotal,
-  required double current,
+  required CartDiscount current,
 }) {
-  return showDialog<double>(
+  return showDialog<CartDiscount>(
     context: context,
     builder: (BuildContext context) => DiscountDialog(
       subtotal: subtotal,
@@ -29,18 +32,30 @@ class DiscountDialog extends StatefulWidget {
   });
 
   final double subtotal;
-  final double current;
+  final CartDiscount current;
 
   @override
   State<DiscountDialog> createState() => _DiscountDialogState();
 }
 
 class _DiscountDialogState extends State<DiscountDialog> {
+  late DiscountType _type = widget.current.type;
   late final TextEditingController _controller = TextEditingController(
-    text: widget.current > 0 ? widget.current.toStringAsFixed(2) : '',
+    text: widget.current.isEmpty
+        ? ''
+        : Fmt.trimDecimals(widget.current.value),
   );
 
   double get _value => double.tryParse(_controller.text.trim()) ?? 0;
+
+  CartDiscount get _discount => CartDiscount(type: _type, value: _value);
+
+  /// قيمة الخصم بالجنيه — للمعاينة تحت الخانة.
+  double get _amount => _discount.amountFor(widget.subtotal);
+
+  bool get _isTooBig => _type == DiscountType.percent
+      ? _value > 100
+      : _value > widget.subtotal;
 
   @override
   void dispose() {
@@ -48,11 +63,17 @@ class _DiscountDialogState extends State<DiscountDialog> {
     super.dispose();
   }
 
-  void _applyPercent(int percent) {
+  void _switchType(DiscountType type) {
+    if (type == _type) return;
+    // القيمة معناها بيتغيّر تمامًا، فبنفضّيها بدل ما نطبّق رقم غلط
     setState(() {
-      _controller.text =
-          (widget.subtotal * percent / 100).toStringAsFixed(2);
+      _type = type;
+      _controller.clear();
     });
+  }
+
+  void _applyPreset(double value) {
+    setState(() => _controller.text = Fmt.trimDecimals(value));
   }
 
   @override
@@ -82,6 +103,8 @@ class _DiscountDialogState extends State<DiscountDialog> {
                 style: AppText.caption,
               ),
               const SizedBox(height: AppSpacing.lg),
+              DiscountTypeToggle(selected: _type, onChanged: _switchType),
+              const SizedBox(height: AppSpacing.lg),
               TextField(
                 controller: _controller,
                 autofocus: true,
@@ -94,8 +117,10 @@ class _DiscountDialogState extends State<DiscountDialog> {
                 onChanged: (_) => setState(() {}),
                 style: AppText.amountLg,
                 decoration: InputDecoration(
-                  labelText: 'قيمة الخصم',
-                  suffixText: Fmt.currencySymbol,
+                  labelText: _type == DiscountType.amount
+                      ? 'قيمة الخصم'
+                      : 'نسبة الخصم',
+                  suffixText: _type.suffix,
                   prefixIcon: const Icon(
                     Icons.local_offer_outlined,
                     size: 20,
@@ -103,21 +128,16 @@ class _DiscountDialogState extends State<DiscountDialog> {
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
-              Row(
-                children: <Widget>[
-                  for (final int p in <int>[5, 10, 15, 20]) ...<Widget>[
-                    Expanded(
-                      child: SecondaryButton(
-                        label: '$p%',
-                        size: AppButtonSize.small,
-                        expanded: true,
-                        onPressed: () => _applyPercent(p),
-                      ),
-                    ),
-                    if (p != 20) const SizedBox(width: AppSpacing.sm),
-                  ],
-                ],
-              ),
+              DiscountPresetsRow(type: _type, onSelected: _applyPreset),
+              // معاينة قيمة النسبة بالجنيه
+              if (_type == DiscountType.percent && _value > 0 && !_isTooBig)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.md),
+                  child: Text(
+                    'يعادل خصم ${Fmt.money(_amount)}',
+                    style: AppText.caption.copyWith(color: AppColors.success),
+                  ),
+                ),
               const SizedBox(height: AppSpacing.xl),
               Row(
                 children: <Widget>[
@@ -126,7 +146,9 @@ class _DiscountDialogState extends State<DiscountDialog> {
                       label: 'إلغاء الخصم',
                       expanded: true,
                       tone: SecondaryButtonTone.danger,
-                      onPressed: () => Navigator.of(context).pop(0.0),
+                      onPressed: () => Navigator.of(context).pop(
+                        const CartDiscount.none(),
+                      ),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.md),
@@ -134,17 +156,19 @@ class _DiscountDialogState extends State<DiscountDialog> {
                     child: PrimaryButton(
                       label: 'تطبيق',
                       expanded: true,
-                      onPressed: _value <= widget.subtotal
-                          ? () => Navigator.of(context).pop(_value)
-                          : null,
+                      onPressed: _isTooBig
+                          ? null
+                          : () => Navigator.of(context).pop(_discount),
                     ),
                   ),
                 ],
               ),
-              if (_value > widget.subtotal) ...<Widget>[
+              if (_isTooBig) ...<Widget>[
                 const SizedBox(height: AppSpacing.md),
                 Text(
-                  'قيمة الخصم أكبر من إجمالي الفاتورة',
+                  _type == DiscountType.percent
+                      ? 'النسبة لازم تكون 100% أو أقل'
+                      : 'قيمة الخصم أكبر من إجمالي الفاتورة',
                   style: AppText.caption.copyWith(color: AppColors.danger),
                 ),
               ],

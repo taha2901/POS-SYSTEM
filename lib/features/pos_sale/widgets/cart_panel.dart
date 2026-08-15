@@ -8,6 +8,7 @@ import 'cart_empty_state.dart';
 import 'cart_header.dart';
 import 'cart_items_list.dart';
 import 'invoice_summary.dart';
+import 'invoice_tabs_bar.dart';
 
 /// بطاقة السلة على يسار شاشة الكاشير بارتفاع الشاشة الكامل.
 class CartPanel extends StatelessWidget {
@@ -25,6 +26,7 @@ class CartPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
+            const InvoiceTabsBar(),
             const CartHeader(),
             const CartCustomerRow(),
             const Divider(height: 1),

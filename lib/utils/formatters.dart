@@ -47,6 +47,11 @@ class Fmt {
 
   static String percent(double value) => '${_percent.format(value)}%';
 
+  /// 40 بدل 40.00 و12.5 بدل 12.50 — للأرقام اللي بيكتبها المستخدم.
+  static String trimDecimals(num value) => value == value.roundToDouble()
+      ? value.toInt().toString()
+      : value.toString();
+
   static String date(DateTime value) => _date.format(value);
 
   static String time(DateTime value) => _time.format(value);

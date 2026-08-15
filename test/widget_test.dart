@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pos_system/main.dart';
 import 'package:pos_system/mock_data/mock_data.dart';
+import 'package:pos_system/core/widgets/numpad.dart';
 import 'package:pos_system/features/payment/screens/payment_dialog.dart';
 import 'package:pos_system/features/pos_sale/screens/pos_sale_screen.dart';
 import 'package:pos_system/theme/app_theme.dart';
@@ -138,9 +139,15 @@ void main() {
             matching: find.text(label),
           );
 
-      await tester.tap(key('1'));
+      // أزرار الأرقام تحديدًا — خانة المبلغ فيها نص مبدئي بنفس الأرقام.
+      Finder numpadKey(String label) => find.descendant(
+            of: find.byType(Numpad),
+            matching: find.text(label),
+          );
+
+      await tester.tap(numpadKey('1'));
       await tester.pump();
-      await tester.tap(key('0'));
+      await tester.tap(numpadKey('0'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('إضافة طريقة دفع أخرى'));

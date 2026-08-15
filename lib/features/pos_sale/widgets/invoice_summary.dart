@@ -33,7 +33,7 @@ class InvoiceSummary extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm + 2),
           InvoiceSummaryRow(
-            label: 'الخصم',
+            label: 'الخصم${cart.discount.shortLabel}',
             value: cart.effectiveDiscount > 0
                 ? '− ${Fmt.money(cart.effectiveDiscount)}'
                 : Fmt.money(0),

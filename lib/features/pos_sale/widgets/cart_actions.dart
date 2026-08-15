@@ -9,6 +9,8 @@ import '../../../features/payment/screens/payment_dialog.dart';
 import '../../../theme/app_theme.dart';
 import '../../../utils/formatters.dart';
 import '../controllers/cart_controller.dart';
+import '../controllers/sales_session_controller.dart';
+import '../models/cart_discount.dart';
 import 'discount_dialog.dart';
 
 /// أزرار أسفل السلة: تعليق الفاتورة، خصم، والدفع.
@@ -16,28 +18,36 @@ class CartActions extends StatelessWidget {
   const CartActions({super.key});
 
   void _holdInvoice(BuildContext context) {
-    showAppSnackBar(context, 'تم تعليق الفاتورة مؤقتًا');
-    context.read<CartController>().clear();
+    context.read<SalesSessionController>().holdActive();
+    showAppSnackBar(
+      context,
+      'تم تعليق الفاتورة — ترجّعها من زرار ⏸ فوق السلة',
+    );
   }
 
   Future<void> _applyDiscount(BuildContext context) async {
     final CartController cart = context.read<CartController>();
-    final double? value = await showDiscountDialog(
+    final CartDiscount? discount = await showDiscountDialog(
       context,
       subtotal: cart.subtotal,
       current: cart.discount,
     );
-    if (value == null || !context.mounted) return;
+    if (discount == null || !context.mounted) return;
 
-    cart.setDiscount(value);
+    cart.setDiscount(discount);
     showAppSnackBar(
       context,
-      value > 0 ? 'تم تطبيق خصم ${Fmt.money(value)}' : 'تم إلغاء الخصم',
+      discount.isEmpty
+          ? 'تم إلغاء الخصم'
+          : 'تم تطبيق خصم ${Fmt.money(cart.effectiveDiscount)}',
     );
   }
 
   Future<void> _pay(BuildContext context) async {
     final CartController cart = context.read<CartController>();
+    final SalesSessionController session =
+        context.read<SalesSessionController>();
+
     final PaymentResult? result = await showPaymentDialog(
       context: context,
       total: cart.total,
@@ -46,7 +56,8 @@ class CartActions extends StatelessWidget {
     );
     if (result == null || !context.mounted) return;
 
-    cart.clear();
+    // بيقفل تبويب الفاتورة، أو يفضّيه لو هو التبويب الأخير
+    session.completeActive();
     showAppSnackBar(
       context,
       result.change > 0.005

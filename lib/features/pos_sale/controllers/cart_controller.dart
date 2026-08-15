@@ -3,20 +3,27 @@ import 'dart:collection';
 import 'package:flutter/foundation.dart';
 
 import '../../../mock_data/mock_data.dart';
+import '../models/cart_discount.dart';
 import '../models/cart_line.dart';
+import '../models/held_invoice.dart';
 
 /// حالة السلة كاملة: الأصناف، الكميات، العميل، الخصم، وحسابات الفاتورة.
 class CartController extends ChangeNotifier {
+  CartController({required this.number});
+
+  /// رقم الفاتورة في التبويبات — بيتعرض للكاشير عشان يفرّق بينها.
+  final int number;
+
   final List<CartLine> _lines = <CartLine>[];
   Customer _customer = MockData.walkInCustomer;
-  double _discount = 0;
+  CartDiscount _discount = const CartDiscount.none();
 
   UnmodifiableListView<CartLine> get lines => UnmodifiableListView<CartLine>(
         _lines,
       );
 
   Customer get customer => _customer;
-  double get discount => _discount;
+  CartDiscount get discount => _discount;
   bool get isEmpty => _lines.isEmpty;
   bool get isNotEmpty => _lines.isNotEmpty;
 
@@ -24,7 +31,9 @@ class CartController extends ChangeNotifier {
   double get subtotal =>
       _lines.fold<double>(0, (double sum, CartLine l) => sum + l.total);
 
-  double get effectiveDiscount => _discount.clamp(0, subtotal);
+  /// الخصم بالجنيه — مهما كان نوعه، ومش بيعدّي المجموع الفرعي.
+  double get effectiveDiscount =>
+      _discount.amountFor(subtotal).clamp(0, subtotal);
 
   double get taxableAmount => subtotal - effectiveDiscount;
 
@@ -68,7 +77,7 @@ class CartController extends ChangeNotifier {
 
   void clear() {
     _lines.clear();
-    _discount = 0;
+    _discount = const CartDiscount.none();
     notifyListeners();
   }
 
@@ -77,8 +86,35 @@ class CartController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setDiscount(double value) {
-    _discount = value;
+  void setDiscount(CartDiscount discount) {
+    _discount = discount;
+    notifyListeners();
+  }
+
+  /// نسخة من السلة عشان تتحفظ في الفواتير المعلّقة.
+  HeldInvoice snapshot(int id) {
+    return HeldInvoice(
+      id: id,
+      lines: <CartLine>[
+        for (final CartLine l in _lines)
+          CartLine(product: l.product, quantity: l.quantity),
+      ],
+      customer: _customer,
+      discount: _discount,
+      heldAt: DateTime.now(),
+    );
+  }
+
+  /// بيملا السلة من فاتورة معلّقة اترجّعت.
+  void restoreFrom(HeldInvoice invoice) {
+    _lines
+      ..clear()
+      ..addAll(<CartLine>[
+        for (final CartLine l in invoice.lines)
+          CartLine(product: l.product, quantity: l.quantity),
+      ]);
+    _customer = invoice.customer;
+    _discount = invoice.discount;
     notifyListeners();
   }
 }
