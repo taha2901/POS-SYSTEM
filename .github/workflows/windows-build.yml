@@ -1,0 +1,66 @@
+name: Windows Desktop Build
+
+on:
+  push:
+    # كل push على main بيبني نسخة جديدة
+    branches: [main]
+    # ولو عملت tag بصيغة v1.0.0 بيعمل كمان Release بلينك تحميل ثابت
+    tags: ['v*']
+  # وتقدر تشغّله يدوي من تبويب Actions
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.4
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      # الناتج بيطلع في build/windows/x64/runner/Release
+      - name: Package as zip
+        shell: pwsh
+        run: |
+          $out = "build/windows/x64/runner/Release"
+          if (-not (Test-Path $out)) { throw "مجلد الـRelease مش موجود: $out" }
+          Compress-Archive -Path "$out/*" -DestinationPath "pos_system_windows.zip" -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pos_system_windows
+          path: pos_system_windows.zip
+          retention-days: 30
+
+      # الـRelease بيتعمل بس لما تعمل push لـtag زي v1.0.0
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: pos_system_windows.zip
+          generate_release_notes: true

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pos_system/main.dart';
-import 'package:pos_system/screens/placeholder_screen.dart';
+import 'package:pos_system/core/widgets/placeholder_screen.dart';
 import 'package:pos_system/widgets/app_shell.dart';
 
 const Size _desktop = Size(1600, 950);

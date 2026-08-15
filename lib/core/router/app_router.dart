@@ -1,0 +1,160 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../features/add_edit_product/screens/add_product_screen.dart';
+import '../../features/branches/screens/branches_screen.dart';
+import '../../features/customers/screens/customer_profile_screen.dart';
+import '../../features/customers/screens/customers_list_screen.dart';
+import '../../features/dashboard/screens/dashboard_screen.dart';
+import '../../features/employees_permissions/screens/employees_list_screen.dart';
+import '../../features/employees_permissions/screens/roles_permissions_screen.dart';
+import '../../features/expenses/screens/expenses_screen.dart';
+import '../../features/inventory/screens/inventory_screen.dart';
+import '../../features/loyalty/screens/loyalty_screen.dart';
+import '../../features/pos_sale/screens/pos_sale_screen.dart';
+import '../../features/products_list/screens/products_list_screen.dart';
+import '../../features/promotions/screens/promotions_screen.dart';
+import '../../features/purchase_orders/screens/create_purchase_order_screen.dart';
+import '../../features/purchase_orders/screens/purchase_orders_screen.dart';
+import '../../features/reports/screens/reports_screen.dart';
+import '../../features/returns/screens/returns_screen.dart';
+import '../../features/settings/screens/settings_screen.dart';
+import '../../features/stock_transfer_stocktake/screens/stocktake_screen.dart';
+import '../../features/suppliers/screens/supplier_profile_screen.dart';
+import '../../features/suppliers/screens/suppliers_list_screen.dart';
+import '../../features/welcome/screens/welcome_screen.dart';
+import '../../widgets/app_shell.dart';
+import '../widgets/placeholder_screen.dart';
+
+/// كل الشاشات جوه [AppShell] من غير أنيميشن انتقال.
+Page<void> _page(Widget child) => NoTransitionPage<void>(child: child);
+
+/// راوتر التطبيق — كل عناصر القائمة الجانبية ليها شاشة حقيقية،
+/// والـPlaceholder اتساب كـfallback للمسارات غير المعروفة بس.
+final GoRouter appRouter = GoRouter(
+  initialLocation: '/',
+  errorBuilder: (BuildContext context, GoRouterState state) => AppShell(
+    child: PlaceholderScreen(
+      title: 'الصفحة غير موجودة',
+      icon: Icons.explore_off_outlined,
+      description: 'المسار «${state.uri.path}» مش موجود — '
+          'اختر شاشة من القائمة الجانبية.',
+    ),
+  ),
+  routes: <RouteBase>[
+    ShellRoute(
+      builder: (BuildContext context, GoRouterState state, Widget child) =>
+          AppShell(child: child),
+      routes: <RouteBase>[
+        GoRoute(
+          path: '/',
+          pageBuilder: (_, _) => _page(const WelcomeScreen()),
+        ),
+        GoRoute(
+          path: '/pos',
+          pageBuilder: (_, _) => _page(const PosSaleScreen()),
+        ),
+        GoRoute(
+          path: '/dashboard',
+          pageBuilder: (_, _) => _page(const DashboardScreen()),
+        ),
+        GoRoute(
+          path: '/expenses',
+          pageBuilder: (_, _) => _page(const ExpensesScreen()),
+        ),
+        GoRoute(
+          path: '/branches',
+          pageBuilder: (_, _) => _page(const BranchesScreen()),
+        ),
+        GoRoute(
+          path: '/settings',
+          pageBuilder: (_, _) => _page(const SettingsScreen()),
+        ),
+        GoRoute(
+          path: '/returns',
+          pageBuilder: (_, _) => _page(const ReturnsScreen()),
+        ),
+        GoRoute(
+          path: '/promotions',
+          pageBuilder: (_, _) => _page(const PromotionsScreen()),
+        ),
+        GoRoute(
+          path: '/loyalty',
+          pageBuilder: (_, _) => _page(const LoyaltyScreen()),
+        ),
+        GoRoute(
+          path: '/reports',
+          pageBuilder: (_, _) => _page(const ReportsScreen()),
+        ),
+        GoRoute(
+          path: '/products',
+          pageBuilder: (_, _) => _page(const ProductsListScreen()),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'new',
+              pageBuilder: (_, _) => _page(const AddProductScreen()),
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/inventory',
+          pageBuilder: (_, _) => _page(const InventoryScreen()),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'stocktake',
+              pageBuilder: (_, _) => _page(const StocktakeScreen()),
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/purchases',
+          pageBuilder: (_, _) => _page(const PurchaseOrdersScreen()),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'new',
+              pageBuilder: (_, _) => _page(const CreatePurchaseOrderScreen()),
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/customers',
+          pageBuilder: (_, _) => _page(const CustomersListScreen()),
+          routes: <RouteBase>[
+            GoRoute(
+              path: ':id',
+              pageBuilder: (_, GoRouterState state) => _page(
+                CustomerProfileScreen(
+                  customerId: state.pathParameters['id']!,
+                ),
+              ),
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/suppliers',
+          pageBuilder: (_, _) => _page(const SuppliersListScreen()),
+          routes: <RouteBase>[
+            GoRoute(
+              path: ':id',
+              pageBuilder: (_, GoRouterState state) => _page(
+                SupplierProfileScreen(
+                  supplierId: state.pathParameters['id']!,
+                ),
+              ),
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/employees',
+          pageBuilder: (_, _) => _page(const EmployeesListScreen()),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'roles',
+              pageBuilder: (_, _) => _page(const RolesPermissionsScreen()),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ],
+);

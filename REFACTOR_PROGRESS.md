@@ -24,7 +24,13 @@
 | 11 | cashier_shift | `open_shift_dialog.dart` (7KB) + `close_shift_dialog.dart` (17KB) | `features/cashier_shift/` — 15 ملف | `ShiftController` | ✅ خلص |
 | 12 | returns | `returns_screen.dart` (29KB) | `features/returns/` — 20 ملف | `ReturnsController` | ✅ خلص |
 | 13 | promotions | `promotions_screen.dart` (25KB) | `features/promotions/` — 21 ملف | `PromotionsController` | ✅ خلص |
-| 14 | loyalty | `loyalty_screen.dart` (22KB) | `features/loyalty/` — 13 ملف | `LoyaltyController` | ✅ خلص |
+| 14 | loyalty | `loyalty_screen.dart` (22KB) | `features/loyalty/` — 13 ملف | `LoyaltyController` |
+| 15 | dashboard | `dashboard_screen.dart` (46KB) | `features/dashboard/` — 21 ملف | `DashboardController` |
+| 16 | expenses | `expenses_screen.dart` (23KB) | `features/expenses/` — 17 ملف | `ExpensesController` + `AddExpenseController` |
+| 17 | branches | `branches_screen.dart` (24KB) | `features/branches/` — 16 ملف | `BranchesController` + `AddBranchController` |
+| 18 | settings | `settings_screen.dart` (37KB) | `features/settings/` — 18 ملف | `SettingsController` |
+| 19 | reports | `reports_screen.dart` (55KB) | `features/reports/` — 26 ملف | `ReportsController` |
+| 20 | welcome | كانت جوه `main.dart` | `features/welcome/` — 4 ملفات | — (شاشة ثابتة) | ✅ خلص |
 | 15 | dashboard | `dashboard_screen.dart` (46KB) | `features/dashboard/` — 23 ملف | `DashboardController` | ✅ خلص |
 | 16 | expenses | `expenses_screen.dart` (23KB) | `features/expenses/` — 18 ملف | `ExpensesController` + `AddExpenseController` | ✅ خلص |
 | 17 | branches | `branches_screen.dart` (24KB) | `features/branches/` — 17 ملف | `BranchesController` + `AddBranchController` | ✅ خلص |
@@ -60,6 +66,10 @@
 - **branches** — `BranchesController` للفروع المضافة، و`AddBranchController` للنموذج.
 - **settings** — القسم المختار وكل قيم الإعدادات في `SettingsController` (شايل كمان أنيميشن الـFade).
   كل قسم إعدادات Widget مستقل، والأجهزة فيها `DeviceCard` + `DeviceStatusRow`.
+- **reports** — `ReportsController` شايل نوع التقرير والفترة والفرع وكل تجميعات البيانات
+  (الفئات، الموظفين، الضرايب، المخزون). كل تقرير من الستة اتقسم لـ`X_report.dart` (البطاقات)
+  و`X_report_table.dart` (الجدول)، وإعدادات الـ`BarChart` في `models/sales_bar_chart_data.dart`.
+- **welcome** — شاشة الترحيب كانت متكتوبة جوه `main.dart` نفسه، اتنقلت لـfeature مستقلة.
 
 ## اللي اتحطّ في `lib/core/` (المشترك بين أكتر من feature)
 
@@ -75,15 +85,23 @@
 - `staggered_reveal.dart` → `StaggeredReveal` — أنيميشن الدخول المتدرّج (dashboard + inventory).
 - `progress_track.dart` → `ProgressTrack` — شريط النسبة الأفقي (dashboard).
 - `dashed_border_painter.dart` → `DashedBorderPainter` — الإطار المتقطّع (add_edit_product + expenses).
+- `nav_list_tile.dart` → `NavListTile` — عنصر القائمة الجانبية الفرعية (settings + reports).
+- `placeholder_screen.dart` → `PlaceholderScreen` — شاشة الـfallback للمسارات غير المعروفة.
 
 **models:**
 - `purchase_order_status_tone.dart` → `PurchaseOrderStatusTone` extension (purchase_orders + suppliers).
 
-## متبقّي في `lib/screens/` (مش من ضمن الـ18)
+**router:**
+- `core/router/app_router.dart` → `appRouter` — كل مسارات التطبيق، اتشالت من `main.dart`.
 
-- `reports_screen.dart` (55KB) — **شاشة شغالة ومربوطة بالراوتر على `/reports`**، وما كانتش ضمن أي
-  feature في الخطة. محتاجة تتعمل لها ريفاكتور كـfeature رقم 19.
-- `placeholder_screen.dart` (3KB) — شاشة الـfallback للمسارات غير المعروفة (بيستخدمها
-  `errorBuilder` في `main.dart` و`navigation_test.dart`).
+## `lib/screens/` — اتمسح بالكامل ✅
 
-الاتنين دول **مش بقايا** — شغالين فعليًا، فما اتمسحوش.
+المجلد القديم بقى فاضي واتشال من المشروع. الهيكل النهائي:
+
+```
+lib/
+  main.dart      ← 34 سطر بس (main() + PosSystemApp)
+  core/          ← 27 ملف مشترك (widgets + models + router)
+  features/      ← 430 ملف في 20 feature
+  mock_data/  theme/  utils/  widgets/(app_shell)
+```

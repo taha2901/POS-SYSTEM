@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
+import '../../theme/app_theme.dart';
 
-/// شاشة مؤقتة للأقسام اللي لسه هتتبني في البرومبتات الجاية.
+/// شاشة بديلة للمسارات غير المعروفة أو الأقسام اللي لسه هتتبني.
 class PlaceholderScreen extends StatelessWidget {
   const PlaceholderScreen({
     super.key,
